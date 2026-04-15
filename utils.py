@@ -233,6 +233,23 @@ def adjust_learning_rate(optimizer, shrink_factor):
 
 
 
+def load_model(checkpoint_path, key="model"):
+    """
+    Load model or generator from checkpoint safely.
+    Args:
+        checkpoint_path: str, path to the checkpoint file.
+        key: str, key in the checkpoint dict to load. Must be either "model" (for SRResNet) or "generator" (for SRGAN).
+
+    Returns:
+        model: torch.nn.Module, the loaded model on the correct device.
+    """
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    model = checkpoint[key].to(device)
+    model.eval()
+    return model
+
+
+
 def compute_lpips(sr_imgs, hr_imgs):
     """
     Compute the LPIPS distance between two batches of images.

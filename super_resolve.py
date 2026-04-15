@@ -10,7 +10,7 @@ srgan_checkpoint = "./checkpoint_srgan.pth.tar"
 srresnet_checkpoint = "./checkpoint_srresnet.pth.tar"
 
 # Allowlist SRResNet, SRGAN Generator, and ConvolutionalBlock
-torch.serialization.add_safe_globals([SRResNet, Generator, ConvolutionalBlock])
+# torch.serialization.add_safe_globals([SRResNet, Generator, ConvolutionalBlock])
 
 # Load models (force weights_only=False to load pickled objects safely)
 srresnet = torch.load(srresnet_checkpoint, map_location=device, weights_only=False)['model'].to(device)

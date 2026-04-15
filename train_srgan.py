@@ -43,7 +43,7 @@ beta = 1e-3
 checkpoint_path = None
 
 # Safe load globals for PyTorch 2.6+
-torch.serialization.add_safe_globals([SRResNet, Generator, ConvolutionalBlock, nn.Sequential, nn.Conv2d])
+# torch.serialization.add_safe_globals([SRResNet, Generator, ConvolutionalBlock, nn.Sequential, nn.Conv2d])
 
 # Load SRResNet safely
 srresnet_model = torch.load(srresnet_checkpoint, map_location=device, weights_only=False)['model']

@@ -1,8 +1,9 @@
 import torch
-from skimage.metrics import peak_signal_noise_ratio, structural_similarity
-from datasets import SRDataset
 from utils import *
-from models import SRResNet, Generator
+from datasets import SRDataset
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+from models.models_Conv2D import SRResNet, Generator
+from models.models_FDConv import FDSRResNet, FD_Generator
 import torch.serialization
 from tqdm import tqdm
 
@@ -10,23 +11,7 @@ from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Allowlist SRResNet & SRGAN Generator for PyTorch >= 2.6
-torch.serialization.add_safe_globals([SRResNet, Generator])
-
-
-def load_model(checkpoint_path, key="model"):
-    """
-    Load model or generator from checkpoint safely.
-    Args:
-        checkpoint_path: str, path to the checkpoint file.
-        key: str, key in the checkpoint dict to load. Must be either "model" (for SRResNet) or "generator" (for SRGAN).
-
-    Returns:
-        model: torch.nn.Module, the loaded model on the correct device.
-    """
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model = checkpoint[key].to(device)
-    model.eval()
-    return model
+# torch.serialization.add_safe_globals([SRResNet, Generator])
 
 
 def evaluate_model(model, data_folder="./", test_data_names=None):
@@ -63,6 +48,7 @@ def evaluate_model(model, data_folder="./", test_data_names=None):
 
         PSNRs = AverageMeter()
         SSIMs = AverageMeter()
+        LPIPSs = AverageMeter()
 
         with torch.no_grad():
             for i, (lr_imgs, hr_imgs) in enumerate(
@@ -81,16 +67,18 @@ def evaluate_model(model, data_folder="./", test_data_names=None):
                 # Metrics
                 psnr = peak_signal_noise_ratio(hr_imgs_y.cpu().numpy(), sr_imgs_y.cpu().numpy(), data_range=255.)
                 ssim = structural_similarity(hr_imgs_y.cpu().numpy(), sr_imgs_y.cpu().numpy(), data_range=255.)
+                lpips = compute_lpips(sr_imgs, hr_imgs)
 
                 PSNRs.update(psnr, lr_imgs.size(0))
                 SSIMs.update(ssim, lr_imgs.size(0))
+                LPIPSs.update(lpips.item(), lr_imgs.size(0))
 
                 tqdm.write(f"Image {i+1}/{len(test_loader)} - PSNR: {psnr:.2f}, SSIM: {ssim:.4f}")
 
         # Store results
-        results[test_data_name] = {"PSNR": PSNRs.avg, "SSIM": SSIMs.avg}
+        results[test_data_name] = {"PSNR": PSNRs.avg, "SSIM": SSIMs.avg, "LPIPS": LPIPSs.avg}
 
-        print(f"\n{test_data_name} Results: PSNR {PSNRs.avg:.3f}, SSIM {SSIMs.avg:.3f}\n")
+        print(f"\n{test_data_name} Results: PSNR {PSNRs.avg:.3f}, SSIM {SSIMs.avg:.3f}, LPIPS {LPIPSs.avg:.3f}\n")
 
     return results
 
@@ -98,11 +86,15 @@ def evaluate_model(model, data_folder="./", test_data_names=None):
 if __name__ == "__main__":
     # Checkpoints
     srresnet_checkpoint = "./checkpoint_srresnet_2.pth.tar"
+    fd_srresnet_checkpoint = "./checkpoint_fd_srresnet.pth.tar"
     srgan_checkpoint = "./checkpoint_srgan_2.pth.tar"
+    fd_srgan_checkpoint = "./checkpoint_fd_srgan.pth.tar"
 
     # Load models
     srresnet = load_model(srresnet_checkpoint, key="model")
+    fd_srresnet = load_model(fd_srresnet_checkpoint, key="model")
     srgan_generator = load_model(srgan_checkpoint, key="generator")
+    fd_srgan_generator = load_model(fd_srgan_checkpoint, key="generator")
 
     # Evaluate both
     print("==== Evaluating SRResNet ====")
@@ -111,9 +103,17 @@ if __name__ == "__main__":
     print("==== Evaluating SRGAN ====")
     srgan_results = evaluate_model(srgan_generator)
 
+    print("==== Evaluating FD-SRResNet ====")
+    fd_resnet_results = evaluate_model(fd_srresnet)
+
+    print("==== Evaluating FD-SRGAN ====")
+    fd_srgan_results = evaluate_model(fd_srgan_generator)
+
     # Final summary
     print("\nSummary Results:")
     for dataset in resnet_results.keys():
         print(f"{dataset}:")
-        print(f"  SRResNet -> PSNR: {resnet_results[dataset]['PSNR']:.3f}, SSIM: {resnet_results[dataset]['SSIM']:.3f}")
-        print(f"  SRGAN    -> PSNR: {srgan_results[dataset]['PSNR']:.3f}, SSIM: {srgan_results[dataset]['SSIM']:.3f}")
+        print(f"  SRResNet    -> PSNR: {resnet_results[dataset]['PSNR']:.3f}, SSIM: {resnet_results[dataset]['SSIM']:.3f}, LPIPS: {resnet_results[dataset]['LPIPS']:.3f}")
+        print(f"  SRGAN       -> PSNR: {srgan_results[dataset]['PSNR']:.3f}, SSIM: {srgan_results[dataset]['SSIM']:.3f}, LPIPS: {srgan_results[dataset]['LPIPS']:.3f}")
+        print(f"  FD-SRResNet -> PSNR: {fd_resnet_results[dataset]['PSNR']:.3f}, SSIM: {fd_resnet_results[dataset]['SSIM']:.3f}, LPIPS: {fd_resnet_results[dataset]['LPIPS']:.3f}")
+        print(f"  FD-SRGAN    -> PSNR: {fd_srgan_results[dataset]['PSNR']:.3f}, SSIM: {fd_srgan_results[dataset]['SSIM']:.3f}, LPIPS: {fd_srgan_results[dataset]['LPIPS']:.3f}")

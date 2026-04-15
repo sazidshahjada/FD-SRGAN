@@ -33,7 +33,7 @@ grad_clip = None
 checkpoint = None  # Path to checkpoint if resuming
 
 # Safe load globals for PyTorch 2.6+
-torch.serialization.add_safe_globals([SRResNet, ConvolutionalBlock, nn.Sequential, nn.Conv2d])
+# torch.serialization.add_safe_globals([SRResNet, ConvolutionalBlock, nn.Sequential, nn.Conv2d])
 
 # Helper functions
 def normalize_for_tb(x):
